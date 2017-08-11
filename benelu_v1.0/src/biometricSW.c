@@ -12,7 +12,7 @@
 /*******************************************************************************
  *  Includes - not touched, right out of the demo
  ******************************************************************************/
-#include test 
+
 #include "em_device.h" 					//LW: Define device & include header --> EFM32WG990F256
 										//LW: CMSIS Cortex-M Peripheral Access Layer for Silicon Laboratories microcontroller devices
 #include "em_chip.h"					//LW: Chip initialization API & chip initialization routine for revision errata workarounds
@@ -20,6 +20,7 @@
 #include "em_emu.h"						//LW: Energy management unit (EMU) peripheral API
 #include "em_gpio.h"					//LW: General purpose IO (GPIO) peripheral API, GPIO pin modes, enable/disable serial wire clock pin, ...
 #include "i2cspm.h"						//LW: I2C simple poll-based master mode driver for the DK/STK, I2C driver instance initialization structure
+/*TODO: si7013.h koennte geloescht werden, wenn nicht benoetigt */
 #include "si7013.h"						//LW: Driver for the Si7013 temperature / humidity sensor
 #include "heart_rate_monitor.h"			//LW: Heart Rate and SpO2 state machine
 #include "rtcdriver.h"					//LW: RTCDRV timer API definition --> Real time clock driver
@@ -40,29 +41,29 @@
 *   Meine eigenen defines, um bestimmte Funktionen ab- und zuzuschalten
  ******************************************************************************/
 
-/** LW: Zweiten I2C fuer si7013 mit 7013 zuschalten.
+/** LW: si7013 zuschalten. inklusive I2C_2
     -   -> zum Abschalten auskommentieren
 */
-#define I2C_2_ENABLE
+#define LW_si7013_ENABLE
 /** LW: STK LEDs, die beiden kleinen unterhalb vom Display zuschalten.
         --> zum Abschalten auskommentieren
 */
-#define STK_LEDs_Enable
+#define LW_STK_LEDs_ENABLE
 /** LW: Display zuschalten.
         --> zum Abschalten auskommentieren
 */
-#define DISPLAY_ENABLE
+#define LW_DISPLAY_ENABLE
 
 /*******************************************************************************
 *   Local defines
  ******************************************************************************/
 
 /** Time (in ms) between periodic updates of the measurements.
-        LW: Hier wird jetzt 1/10sek geprüft, ob SkinContact vorhanden ist.
-            Im Original Demo 1/sek. Zeitspanne erhöhen, um Energie zu sparen,
+        LW: Hier wird jetzt 1/min (60000) geprueft, ob SkinContact vorhanden ist.
+            Im Original Demo 1/sek (1000). Zeitspanne erhoehen, um Energie zu sparen,
             bzw. Zeit zw. Messungen festzulegen.
 */
-#define PERIODIC_UPDATE_MS      10000
+#define PERIODIC_UPDATE_MS      60000
 /** Time (in ms) between characters of the scrolling text.
         LW:	Voreingestellt in der Demo waren 250
 */
@@ -83,7 +84,9 @@
 #define SI114X_NON_UV           0x5A
 #define SI114X_UV               0x60
 
-#ifdef  I2C_2_ENABLE
+/*TODO: Kann eigentlich geloescht werden, hier ueber ifdef geloest, um
+ein- und auszuschalten */
+#ifdef  LW_si7013_ENABLE
     #define SI7013_I2C_SCL_PORT     gpioPortC
     #define SI7013_I2C_SCL_PIN      5
     #define SI7013_I2C_SDA_PORT     gpioPortC
@@ -105,7 +108,9 @@
 #define PB1_PORT                gpioPortB
 #define PB1_PIN                 10
 
-#ifdef STK_LEDs_Enable
+/*TODO:ifdef eingefuegt, um die STK LEDs unter dem Display
+ein- und auszuschalten */
+#ifdef LW_STK_LEDs_ENABLE
     #define LED0_PORT               gpioPortE
     #define LED0_PIN                2
     #define LED1_PORT               gpioPortE
@@ -143,7 +148,10 @@ RTCDRV_TimerID_t periodicUpdateTimerId;
 RTCDRV_TimerID_t updateScrollTimerId;
 
 /** Driver handle instances */
-I2CSPM_Init_TypeDef si7013I2CHandle = I2CSPM_INIT_DEFAULT;
+/*TODO: ifdef LW_si7013_ENABLE um ein und auszuschalten*/
+#ifdef LW_si7013_ENABLE
+    I2CSPM_Init_TypeDef si7013I2CHandle = I2CSPM_INIT_DEFAULT;
+#endif
 I2CSPM_Init_TypeDef si114xI2CHandle = I2CSPM_INIT_DEFAULT;
 Si114xPortConfig_t* si114xDrvHandle;
 Si114xPortConfig_t uvPort;
@@ -167,15 +175,16 @@ static int32_t performMeasurements(uint32_t *rhData, int32_t *tData,
                                    uint16_t *uvData, uint32_t *vBat)
 {
   bool vboost;
-  *rhData = 1234;
-  *tData = 5678;
+  *rhData = 1234;   //TODO: wird eigentlich nicht benoetigt
+  *tData = 5678;    //TODO: wird eigentlich nicht benoetigt
   *vBat = checkBattery();
 
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//TODO: si7013 Teil kann geloescht, bzw. pruefen, ob mit define oder Variable auszuschalten
-  Si7013_MeasureRHAndTemp(si7013I2CHandle.port, SI7013_ADDR_0, rhData, tData);
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  Si114x_MeasureUVIndex(uvData);
+//TODO: ifdef LW_si7013_ENABLE, um ein und auszuschalten */
+#ifdef LW_si7013_ENABLE
+    Si7013_MeasureRHAndTemp(si7013I2CHandle.port, SI7013_ADDR_0, rhData, tData);
+#endif
+
+  Si114x_MeasureUVIndex(uvData); /*TODO: pruefen, ob benoetigt */
 
   vboost = (*vBat < 2900);
 
@@ -190,76 +199,94 @@ static int32_t performMeasurements(uint32_t *rhData, int32_t *tData,
 /*******************************************************************************
  * @brief  Detects HRM device on ribbon cable.
  ******************************************************************************/
-//TODO: hiervon kann viel weg, wenn kein check für die anderen Sensoren
-static void detectHRMDevice(void)
-{
-  hrmConfig = BIOMETRIC_EXP;
-  /* Check for Si1143 or other device on i2c1 6 pin flex cable connector
-     If we detect another EVB connected via flex cable switch heart rate
-     configuration to use the EVB connected instead of the Si1146 on the
-     EXP board. */
-
-  /* First check for Si1143 on address 0x5A on flex cable. */
-  hrmPort.i2cAddress = SI114X_NON_UV;
-  hrmPort.i2cPort = I2C1;
-  if (Si114xInit(&hrmPort, 0, (HANDLE)&si114xDrvHandle) < 0)
-  {
-    /* We didn't find an Si1143.
-       If no Si1143 detected, check for the Si1147 postage stamp */
-    hrmPort.i2cAddress = SI114X_UV;
-    if (Si114xInit(&hrmPort, 0, (HANDLE)&si114xDrvHandle) < 0)
-    {
-      hrmPort.i2cPort = I2C0;
-    }
-    else
-    {
-      /* Found a Si1147 so reconfigure */
-      hrmConfig = SI1147_PS;
-    }
-  }
-  else
-  {
-    /* Found an Si1143. Need to discover which EVB and reconfigure.
-       Set up HRM i2c parameters for Si1143 on i2c bus 1.
-       Figure out which board we are connected to.
-       If we detect an Si7013 also on i2c1 then we have a fitness EVB. */
-    if (Si7013_Detect(si7013I2CHandle.port, SI7013_ADDR_1, NULL))
-    {
-      /* Fitness evb detected (wrist). - we do not support wrist based
-         operation on the biometric EXP. Contact Silicon Labs for a wrist
-         based HRM solution. */
-      GRAPHICS_DrawError();
-      while(1)
-      {
-        if ((USBD_SafeToEnterEM2() && usbEnabled) || (!usbEnabled))
-        {
-          EMU_EnterEM2(usbEnabled);
-        }
-      }
-    }
-    else
-    {
-      /* If we did not find a Si7013 then it must be a Si1143 postage stamp. */
-      hrmConfig = SI1143_PS;
-    }
-  }
+/*TODO: hiervon kann viel weg, wenn kein check fuer die anderen Sensoren
+So koennte der Block umgeschrieben dann aussehen und ist funktionsfaehig, wenn
+auch noch nicht ganz verstanden.
+Der Block darunter ist das Original komplett getoggled*/
+static void detectHRMDevice(void){
+	hrmConfig = BIOMETRIC_EXP;													//LW: hier BIOMETRIC_EXP folgen, da kann was gel�scht werden
+	hrmPort.i2cAddress = SI114X_UV;
+		if (Si114xInit(&hrmPort, 0, (HANDLE)&si114xDrvHandle) < 0)
+		{
+			hrmPort.i2cPort = I2C0;
+		}
 }
+
+// static void detectHRMDevice(void)
+// {
+//   hrmConfig = BIOMETRIC_EXP;
+//   /* Check for Si1143 or other device on i2c1 6 pin flex cable connector
+//      If we detect another EVB connected via flex cable switch heart rate
+//      configuration to use the EVB connected instead of the Si1146 on the
+//      EXP board. */
+//
+//   /* First check for Si1143 on address 0x5A on flex cable. */
+//   hrmPort.i2cAddress = SI114X_NON_UV;
+//   hrmPort.i2cPort = I2C1;
+//   if (Si114xInit(&hrmPort, 0, (HANDLE)&si114xDrvHandle) < 0)
+//   {
+//     /* We didn't find an Si1143.
+//        If no Si1143 detected, check for the Si1147 postage stamp */
+//     hrmPort.i2cAddress = SI114X_UV;
+//     if (Si114xInit(&hrmPort, 0, (HANDLE)&si114xDrvHandle) < 0)
+//     {
+//       hrmPort.i2cPort = I2C0;
+//     }
+//     else
+//     {
+//       /* Found a Si1147 so reconfigure */
+//       hrmConfig = SI1147_PS;
+//     }
+//   }
+//   else
+//   {
+//     /* Found an Si1143. Need to discover which EVB and reconfigure.
+//        Set up HRM i2c parameters for Si1143 on i2c bus 1.
+//        Figure out which board we are connected to.
+//        If we detect an Si7013 also on i2c1 then we have a fitness EVB. */
+//     if (Si7013_Detect(si7013I2CHandle.port, SI7013_ADDR_1, NULL))
+//     {
+//       /* Fitness evb detected (wrist). - we do not support wrist based
+//          operation on the biometric EXP. Contact Silicon Labs for a wrist
+//          based HRM solution. */
+//       GRAPHICS_DrawError();
+//       while(1)
+//       {
+//         if ((USBD_SafeToEnterEM2() && usbEnabled) || (!usbEnabled))
+//         {
+//           EMU_EnterEM2(usbEnabled);
+//         }
+//       }
+//     }
+//     else
+//     {
+//       /* If we did not find a Si7013 then it must be a Si1143 postage stamp. */
+//       hrmConfig = SI1143_PS;
+//     }
+//   }
+// }
 
 /**************************************************************************//**
  * @brief  Main function
  *****************************************************************************/
 int main(void)
 {
-  uint32_t         rhData;
+  uint32_t         rhData;          /*TODO: Koennte wahrscheinlich geloescht werden */
+
+/*TODO: ifdef LW_si7013_ENABLE, um ein und auszuschalten */
+#ifdef LW_si7013_ENABLE
   bool             si7013Status;
-  bool             si1146Status;
-  int32_t          tempData;
-  uint16_t         uvData = 50;
+#endif
+
+  bool             si1146Status;    //Dieser Sensor ist auf unserem EXP Board
+  int32_t          tempData;        /*TODO: Koennte wahrscheinlich geloescht werden */
+  uint16_t         uvData = 50;     /*TODO: Koennte evtl. geloescht werden */
   uint32_t         vBat = 3300;
   bool             lowBatPrevious = true;
   bool             lowBat = false;
 
-  char             hrmVersion[10];
+  char             hrmVersion[10];  /*TODO: Es koennte die eigene Version
+  eingetragen werden. Dafuer hier evtl. Groeße des arrays aendern */
   bool             scrollStatus;
   bool             hrmCheckSkinContact = true;
 
@@ -271,6 +298,8 @@ int main(void)
   si114xI2CHandle.sdaPin = SI114X_I2C_SDA_PIN;
   si114xI2CHandle.portLocation = SI114X_I2C_PORT_LOC;
 
+/*TODO: ifdef LW_si7013_ENABLE, um ein und auszuschalten*/
+#ifdef LW_si7013_ENABLE
   /* si7013 I2C driver config */
   si7013I2CHandle.port = I2C1;
   si7013I2CHandle.sclPort = SI7013_I2C_SCL_PORT;
@@ -278,6 +307,7 @@ int main(void)
   si7013I2CHandle.sdaPort = SI7013_I2C_SDA_PORT;
   si7013I2CHandle.sdaPin = SI7013_I2C_SDA_PIN;
   si7013I2CHandle.portLocation = SI7013_I2C_PORT_LOC;
+#endif
 
   /* si114x UV/HRM port config */
   uvPort.i2cPort = si114xI2CHandle.port;
@@ -306,8 +336,13 @@ int main(void)
   RTCDRV_AllocateTimer(&updateScrollTimerId);
 
   /* Initialize display. */
-  GRAPHICS_Init(false);
+/*TODO: ifdef eingefuegt, um das Display ein- und ausschalten zu koennen */
+  #ifdef LW_DISPLAY_ENABLE
+        GRAPHICS_Init(false);
+  #endif
 
+/*TODO: USB fuer Datentransfer der "Rohdaten". Pruefen ob if-struktur so richtig
+oder ob else zweig und if!usbEnabled anders sein sollte. sieht komisch aus */
   /* Check if we need to enable USB.
      USB is enabled by holding down PB0 during reset */
   if (!GPIO_PinInGet(PB0_PORT, PB0_PIN)) /* PB0 is pressed */
@@ -328,29 +363,36 @@ int main(void)
     CMU_ClockDivSet(cmuClock_HF,cmuClkDiv_8);
   }
 
+//TODO: Pruefen,ob benoetigt
 #if !defined( BSP_STK )
   BSP_PeripheralAccess(BSP_I2C, true);
 #endif
 
   /* Initialize I2C drivers for si114x and si7013 using standard rate */
    I2CSPM_Init(&si114xI2CHandle);
-   I2CSPM_Init(&si7013I2CHandle);
 
+/* TODO: #ifdef LW_si7013_ENABLE, um ein und auszuschalten */
+#ifdef LW_si7013_ENABLE
+   I2CSPM_Init(&si7013I2CHandle);
   /* Detect Si7013 device on EXP board */
   si7013Status = Si7013_Detect(si7013I2CHandle.port, SI7013_ADDR_0, NULL);
+#endif
 
   /* Detect Si1146 device on EXP board. */
   si1146Status = (Si114xInit(&uvPort, 0, (HANDLE)&si114xDrvHandle) >= 0);
 
+//TODO: Koenntenweggelassen/veraendert werden, wenn device eindeutig
   detectHRMDevice();
 
   HeartRateMonitor_GetVersion(hrmVersion);
 
   /* Show splash screens informing user of configuration. */
+/*TODO: anpassen, welche Daten angezeigt werden sollen */
   GRAPHICS_DrawInit(hrmConfig, hrmVersion,BIOMETRIC_DEMO_VERSION, usbEnabled);
 
   /* If EXP board fails display error message. */
-  if ((!si1146Status) || (!si7013Status))
+/* TODO: si7013 status Koennte geloescht werden, hier getoogled */
+  if ((!si1146Status) /*|| (!si7013Status)*/)
   {
     GRAPHICS_DrawError();
     if ((USBD_SafeToEnterEM2() && usbEnabled) || (!usbEnabled))
@@ -374,12 +416,16 @@ int main(void)
   }
   Si114x_ConfigureUV(hrmConfig != BIOMETRIC_EXP, (HANDLE)&si114xDrvHandle);
 
+//TODO: hier koennten die nicht benoetigten messungen entfallen, pruefen,wie das gemacht werden kann
   performMeasurements(&rhData, &tempData, &uvData, &vBat);
 
   /* Configure Si114x interrupt gpio input. */
   configSi114xIntInput();
   reinitHRM = true;
 
+
+/*TODO: hier beginnt der LOOP --> pruefen, was weggelassen werden kann, wenn
+wir nur HRM & SPO2 machen. zum Beispiel display modes naechster Absatz*/
   while (true)
   {
     /* There are two display mode. HRM-SpO2 and RH/T/UV modes.
@@ -430,6 +476,9 @@ int main(void)
         if (updateScrollText)
         {
           /* scroll instructions to user across LCD*/
+
+/*TODO: ifdef LW_DISPLAY_ENABLE, um ein und auszuschalten */
+#ifdef LW_DISPLAY_ENABLE
           updateScrollText = false;
           if (displayType == LCD_HRM)
           {
@@ -457,6 +506,7 @@ int main(void)
               GRAPHICS_ShowSpO2Status(false, 0, false);
             }
           }
+#endif
         }
         if ((USBD_SafeToEnterEM2() && usbEnabled) || (!usbEnabled))
         {
@@ -490,6 +540,7 @@ int main(void)
 
       if (updateMeasurement)
       {
+/*TODO: pruefen, was hier wegfallen kann und wie: rh, temp*/
         performMeasurements(&rhData, &tempData, &uvData, &vBat);
         updateMeasurement = false;
         if (lowBatPrevious)
@@ -501,9 +552,14 @@ int main(void)
           lowBat = false;
         }
         lowBatPrevious = (vBat <= LOW_BATTERY_THRESHOLD);
+/*TODO: ifdef LW_DISPLAY_ENABLE, um ein und auszuschalten */
+#ifdef LW_DISPLAY_ENABLE
         GRAPHICS_SetBatteryStatus(lowBat);
+#endif
       }
 
+/*TODO: ifdef LW_DISPLAY_ENABLE, um ein und auszuschalten */
+#ifdef LW_DISPLAY_ENABLE
       if (updateDisplay)
       {
         switch (displayType)
@@ -533,6 +589,9 @@ int main(void)
                           PERIODIC_UPDATE_MS, periodicUpdateCallback, NULL);
 
       }
+#endif
+
+
       if ((USBD_SafeToEnterEM2() && usbEnabled) || (!usbEnabled))
       {
         EMU_EnterEM2(true);
@@ -654,7 +713,8 @@ static void gpioSetup(void)
   /*si114x interrupt. we want this pin high while si114x starts up*/
   GPIO_PinModeSet(SI114X_INT_PORT, SI114X_INT_PIN, gpioModePushPull, 1);
 
-
+/*TODO: ifdef LW_STK_LEDs_ENABLE, um diese auszuschalten, evtl mode aendern, damit ganz aus*/
+#ifdef LW_STK_LEDs_ENABLE
   /* Configure PE2 as pushpull. (STK LED) */
   GPIO_PinModeSet(LED0_PORT, LED0_PIN, gpioModePushPull, 0);
   GPIO_PinOutClear(LED0_PORT, LED0_PIN);
@@ -662,12 +722,15 @@ static void gpioSetup(void)
   /* Configure PE3 as pushpull. (STK LED) */
   GPIO_PinModeSet(LED1_PORT, LED1_PIN, gpioModePushPull, 0);
   GPIO_PinOutClear(LED1_PORT, LED1_PIN);
+#endif
 }
 
 
 /**************************************************************************//**
  * @brief Performs action when PB0/1 is pressed.
  *****************************************************************************/
+/*TODO: pruefen, was hier wegfallen kann und wie am besten umzusetzen*/
+
 static void PBPressed(int32_t button)
 {
   /* Push button 0 changes display in negative direction. */
@@ -710,6 +773,7 @@ static void PBPressed(int32_t button)
 /**************************************************************************//**
  * @brief GPIO Interrupt handler (PB1)
  *****************************************************************************/
+/*TODO: pruefen, ob nicht PB1 wegfallen kann. schaltet display weiter auf andere werttypen wie auch PB0 */
 void GPIO_EVEN_IRQHandler(void)
 {
   /* Acknowledge interrupt */
