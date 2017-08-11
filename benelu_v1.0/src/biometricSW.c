@@ -37,6 +37,7 @@
 
 #define BIOMETRIC_DEMO_VERSION "LW 1.1"	//LW: What's written in " " is displayed while startup and shows version number, i.e. in this case "LW 1.1"
 
+
 /*******************************************************************************
 *   Meine eigenen defines, um bestimmte Funktionen ab- und zuzuschalten
  ******************************************************************************/
@@ -44,15 +45,31 @@
 /** LW: si7013 zuschalten. inklusive I2C_2
     -   -> zum Abschalten auskommentieren
 */
-#define LW_si7013_ENABLE
+//#define LW_si7013_ENABLE
+
+
 /** LW: STK LEDs, die beiden kleinen unterhalb vom Display zuschalten.
         --> zum Abschalten auskommentieren
 */
-#define LW_STK_LEDs_ENABLE
+//#define LW_STK_LEDs_ENABLE
+
+
 /** LW: Display zuschalten.
         --> zum Abschalten auskommentieren
 */
-#define LW_DISPLAY_ENABLE
+//#define LW_DISPLAY_ENABLE
+
+
+/** LW: Rote & grüne LED oben links auf dem EXP Board zur Statusanzeige der
+ * 		Messung HRM & SPO2 zuschalten.
+ * 		-> zum Abschalten auskommentieren
+ *      ist in hrmSW.c und muss noch überarbeitet werden !!!
+ *      aber funktioniert schon, nur ob es was bringt noch nicht evaluiert
+ *      timer etc laufen noch
+*/
+//#define LW_REDandGREEN_LED_ENABLE
+/******************************************************************************/
+
 
 /*******************************************************************************
 *   Local defines
@@ -204,7 +221,7 @@ So koennte der Block umgeschrieben dann aussehen und ist funktionsfaehig, wenn
 auch noch nicht ganz verstanden.
 Der Block darunter ist das Original komplett getoggled*/
 static void detectHRMDevice(void){
-	hrmConfig = BIOMETRIC_EXP;													//LW: hier BIOMETRIC_EXP folgen, da kann was gel�scht werden
+	hrmConfig = BIOMETRIC_EXP;													//LW: hier BIOMETRIC_EXP folgen, da kann was geloescht werden
 	hrmPort.i2cAddress = SI114X_UV;
 		if (Si114xInit(&hrmPort, 0, (HANDLE)&si114xDrvHandle) < 0)
 		{

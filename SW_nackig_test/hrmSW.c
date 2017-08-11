@@ -19,7 +19,7 @@
 #include "em_gpio.h"
 #include "em_chip.h"
 #include "em_timer.h"
-#include "heart_rate_monitor_config.h"  //TODO: folgen->hier GPIO config für LED oben links EXP board
+#include "heart_rate_monitor_config.h"  //TODO: folgen->hier GPIO config für LED oben links EXP board 
 #include "graphics.h"
 #ifdef USB_DEBUG
 #include "usb_debug.h"
@@ -91,9 +91,6 @@ static volatile bool bufferOverrunError = false;
 	Si114xhrmData_t hrmData;
 	char debugMessage[100];
 #endif
-
-/*TODO: Typen die nicht gebraucht werden, können eigentlich raus --> es wird
-eigentlich nur static Si114xhrmConfiguration_t biometricEXPHRMConfig benoetigt*/
 
 // Si1143 postage stamp module config
 static Si114xhrmConfiguration_t Si1143PsHRMConfig = {
